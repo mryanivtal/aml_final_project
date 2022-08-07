@@ -1,0 +1,64 @@
+Train using ELBO – can also do IWAE (importance weighted AE - https://arxiv.org/abs/1509.00519)
+	Get x_seq, m_seq (Masked data, Mask Boolean) batch
+	loss = model.compute_loss(x_seq, m_mask=m_seq)
+		tile x K*M times
+		tile m K*M times
+		
+		pz = self._get_prior()		# from GP_VAE		
+			# runs only once and keep the value for later usage
+			Calculate a (Cauchi) kernel_matrix (10, 10)
+			Returns a distribution object MultivariateNormalFullCovariance with mean=0 and cov=kernel_matrix 
+		
+		qz_x = self.encode(x)
+			Preprocess x (2d convnet) : (64, 10, 784) --> (64, 10, 768)
+				# preprocess runs on each 28x28 image separately (No time dimension!)
+			
+			return self.encoder(x)
+				# apply banded encoder (conv1d, dense, dense) on preprocessed x and return result
+				Pass X through VAE encoder, get mapped as output: (64, 10, 784) --> (64, 10, 768) (batch  size, time range, sample dim)
+				Transpose output to (batch_size, dim, time)
+				Get mu and covar from output split:
+					mapped_mean (64, 256, 10)
+					mapped_covar(64, 512, 10)
+				Pass mapped_covar through softmax activation function (sigmoid if Physionist dataset)
+			
+				Obtain covariance matrix from precision one 
+					mapped_reshaped = mapped_covar reshaped to (64, 256, 20) (batch_size, z_size, 2*time_length)
+					Prepare some indexes matrix (311296, 4)
+					Create a sparse matrix prec_sparse using the indexes and data from mapped_reshaped omitting the last layer (64, 256, 10, 10)
+					Create matrix prec_tril (64, 256, 10, 10)
+					Get matrix cov_tril (64, 256, 10, 10) by solving the prec_tril linear equation set (linalg.triangular_solve)
+					cov_tril - replace infinites and zeros
+					cov_tril_lower = Transpose cov_tril to (64, 256, 10, 10)
+			
+			z_dist = a distribution object: MultivariateNormalTriL(loc=mapped_mean, scale_tril=cov_tril_lower)
+			return z_dist
+			
+	Z = sample from qz_x distribution (vector 64, 256, 10)
+	
+	
+	# TODO:Yaniv: I am here! <<<<<<<<<<<<<<======================================================---
+	
+	px_z = self.decode(z)
+		Transpose z --> (64, 10, 256)
+		Pass through decoder NN --> mapped (64, 10, 784)
+		Return a sample from a distribution object:  Bernoulli(logits=mapped) 
+	
+	Calculate cost function
+		Calculate Negative Log Likelihood – The log probability of the observed samples according to p(x|z)
+			nll = -px_z.log_prob(x)   (64, 10, 784)
+			replace infinite elements of nll wtih zeros
+			replace masked elements in nll with zeros based on m_mask
+			nll = tf.reduce_sum(nll, [1, 2])    shape=(M*K*BS) (64)
+		Calculate kl_divergence(qz_x, pz) – Either analytically or with monte-carlo sampling     shape=(M*K*BS, TL or d) (64, 256)
+			Calc KL divergence
+			Replace infinite with zeros
+			Sum over z dimension – get one number per sample  (M*K*BS) = (64)
+		Calc elbo
+			elbo = -nll - self.beta * kl     shape=(M*K*BS) K=1
+			elbo = tf.reduce_mean(elbo)   scalar
+
+g.	Optimizer step 
+
+
+
