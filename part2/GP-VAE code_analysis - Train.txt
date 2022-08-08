@@ -34,31 +34,44 @@ Train using ELBO – can also do IWAE (importance weighted AE - https://arxiv.or
 			z_dist = a distribution object: MultivariateNormalTriL(loc=mapped_mean, scale_tril=cov_tril_lower)
 			return z_dist
 			
-	Z = sample from qz_x distribution (vector 64, 256, 10)
-	
-	
-	# TODO:Yaniv: I am here! <<<<<<<<<<<<<<======================================================---
-	
-	px_z = self.decode(z)
-		Transpose z --> (64, 10, 256)
-		Pass through decoder NN --> mapped (64, 10, 784)
-		Return a sample from a distribution object:  Bernoulli(logits=mapped) 
-	
-	Calculate cost function
-		Calculate Negative Log Likelihood – The log probability of the observed samples according to p(x|z)
-			nll = -px_z.log_prob(x)   (64, 10, 784)
+		Z = sample from qz_x distribution (vector 64, 256, 10)
+		
+		px_z = self.decode(z)		# GP-VAE.decode
+			Transpose z --> (64, 10, 256)
+			Pass z through decoder NN --> mapped (64, 10, 784)
+			Return a Bernoulli distribution object:  Bernoulli(logits=mapped) 
+		
+		########################
+		# Summary till now:
+		# pz - p(z) prior - MultivariateNormalFullCovariance dist object with mean=0 and cov=cauchi kernel matrix
+		# qz_x - q(z|x) - MultivariateNormalTriL dist object - with mean and cov based on x encoded by VAE NN
+		# z - sample vector from qz_x dist	
+		# px_z - p(x|z) posterior - Bernoulli dist object (Because the pixels are either 1 or 0?) with logits = output of z decoded by decoder NN
+		#######################
+		
+		
+		nll = -px_z.log_prob(x)  # shape=(M*K*BS, TL, D)	# negative log likelihood - The log probability of the observed samples x according to p(x|z)
+		
+		# Calculate Negative Log Likelihood – The log probability of the observed samples x according to p(x|z)
+			nll = -px_z.log_prob(x)  # shape=(M*K*BS, TL, D) (64, 10, 784)	
 			replace infinite elements of nll wtih zeros
-			replace masked elements in nll with zeros based on m_mask
-			nll = tf.reduce_sum(nll, [1, 2])    shape=(M*K*BS) (64)
-		Calculate kl_divergence(qz_x, pz) – Either analytically or with monte-carlo sampling     shape=(M*K*BS, TL or d) (64, 256)
-			Calc KL divergence
+			replace masked elements in nll with zeros based on m_mask to remove them from training cost
+			nll = tf.reduce_sum(nll, [1, 2])  #shape=(M*K*BS) (64)
+		
+		# Calculate kl_divergence(qz_x, pz) – Either analytically or with monte-carlo sampling     shape=(M*K*BS, TL or d) (64, 256)
+			kl = self.kl_divergence(qz_x, pz)  # Calc KL divergence: shape=(M*K*BS, TL or d) 
 			Replace infinite with zeros
-			Sum over z dimension – get one number per sample  (M*K*BS) = (64)
-		Calc elbo
-			elbo = -nll - self.beta * kl     shape=(M*K*BS) K=1
-			elbo = tf.reduce_mean(elbo)   scalar
+			Sum over z latent dimension – get one number per sample - shape=(M*K*BS) = (64)
+		
+		# Calc elbo
+			elbo = -nll - self.beta * kl   #  shape=(M*K*BS) K=1
+			elbo = tf.reduce_mean(elbo)  # scalar
+		
+		return -elbo
 
-g.	Optimizer step 
+	Optimizer step update grads etc.
+	
 
+	
 
 
