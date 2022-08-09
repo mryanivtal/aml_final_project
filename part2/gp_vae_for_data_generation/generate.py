@@ -199,17 +199,17 @@ def main(argv):
         raise ValueError("Data type must be one of ['hmnist', 'physionet', 'sprites']")
 
     # TODO:Miriam addition
-    # if FLAGS.train_class_number:
-    #     indexes = np.empty(0,dtype=int)
-    #     for value in np.unique(y_train):
-    #         itemindex = np.where(y_train == value)
-    #         indexes = np.append(indexes, np.random.choice(itemindex[0], FLAGS.train_class_number, replace=False), axis=0)
-    #     print(len(indexes))
-    #     x_train_full = x_train_full[indexes]
-    #     print(x_train_full.shape)
-    #     x_train_miss = x_train_miss[indexes]
-    #     m_train_miss = m_train_miss[indexes]
-    #     y_train = y_train[indexes]
+    if FLAGS.train_class_number:
+        indexes = np.empty(0,dtype=int)
+        for value in np.unique(y_train):
+            itemindex = np.where(y_train == value)
+            indexes = np.append(indexes, np.random.choice(itemindex[0], FLAGS.train_class_number, replace=False), axis=0)
+        print(len(indexes))
+        x_train_full = x_train_full[indexes]
+        print(x_train_full.shape)
+        x_train_miss = x_train_miss[indexes]
+        m_train_miss = m_train_miss[indexes]
+        y_train = y_train[indexes]
     # # ------- end of addition
 
     tf_x_train_miss = tf.data.Dataset.from_tensor_slices((x_train_miss, m_train_miss))\
