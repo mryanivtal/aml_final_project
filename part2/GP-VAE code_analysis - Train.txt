@@ -1,4 +1,5 @@
 Train using ELBO – can also do IWAE (importance weighted AE - https://arxiv.org/abs/1509.00519)
+=================================================================================================
 	Get x_seq, m_seq (Masked data, Mask Boolean) batch
 	loss = model.compute_loss(x_seq, m_mask=m_seq)
 		tile x K*M times
@@ -52,15 +53,15 @@ Train using ELBO – can also do IWAE (importance weighted AE - https://arxiv.or
 		
 		nll = -px_z.log_prob(x)  # shape=(M*K*BS, TL, D)	# negative log likelihood - The log probability of the observed samples x according to p(x|z)
 		
-		# Calculate Negative Log Likelihood – The log probability of the observed samples x according to p(x|z)
+		# Calculate Negative Log Likelihood -log(p(X=x|z)) – The log probability of the observed samples x according to p(x|z)
 			nll = -px_z.log_prob(x)  # shape=(M*K*BS, TL, D) (64, 10, 784)	
 			replace infinite elements of nll wtih zeros
 			replace masked elements in nll with zeros based on m_mask to remove them from training cost
 			nll = tf.reduce_sum(nll, [1, 2])  #shape=(M*K*BS) (64)
 		
-		# Calculate kl_divergence(qz_x, pz) – Either analytically or with monte-carlo sampling     shape=(M*K*BS, TL or d) (64, 256)
-			kl = self.kl_divergence(qz_x, pz)  # Calc KL divergence: shape=(M*K*BS, TL or d) 
-			Replace infinite with zeros
+		# Calculate kl_divergence(qz_x, pz) – Can calculate either analytically or with monte-carlo sampling
+			kl = self.kl_divergence(qz_x, pz)  # Calc KL divergence: shape=(M*K*BS, TL or d)  (64, 256)
+			Replace infinites and zeros
 			Sum over z latent dimension – get one number per sample - shape=(M*K*BS) = (64)
 		
 		# Calc elbo
