@@ -153,22 +153,13 @@ def main(argv):
     #load base dataset from disk
     base_data_full = np.load(BASE_DATA_PATH)
 
-    def apply_noise(dataset, bit_flip_ratio):
-        '''
-        Generatates a masked dataset based on an original dataset and a bit_flip ratio
-        '''
-        masked_dataset = dataset.copy()
-        mask_set = np.random.random(size=masked_dataset.shape) < bit_flip_ratio
-        masked_dataset[mask_set & (masked_dataset == 1)] = 1 - masked_dataset[mask_set & (masked_dataset == 1)]
-        return masked_dataset
-
     # Generate masked data
     noise_ratio = 0.750
-    base_data_masked = apply_noise(base_data_full, noise_ratio)
+    base_data_masked, mask_set = utils.apply_noise(base_data_full, noise_ratio)
 
     # Display rotated set - base and masked
     # utils.display_mnist_chars(base_data_full[0:5, :, :])
-    utils.display_mnist_chars(base_data_masked[0:5, :, :])
+    # utils.display_mnist_chars(base_data_masked[0:5, :, :])
 
     # Build Conv2D preprocessor for image data
     if FLAGS.data_type in ['hmnist', 'sprites']:
@@ -210,7 +201,10 @@ def main(argv):
 
     # Load last saved checkpoint
     print("GPU support: ", tf.test.is_gpu_available())
-    _ = model.get_trainable_vars()  # Required to compile the model
+
+    _ = tf.compat.v1.train.get_or_create_global_step()
+    _ = model.get_trainable_vars()
+
     print("Encoder: ", model.encoder.net.summary())
     print("Decoder: ", model.decoder.net.summary())
 
@@ -232,6 +226,10 @@ def main(argv):
     np.save(os.path.join(GENERATED_DATA_PATH, "z_mean"), np.vstack(z_mean))
     x_val_imputed = np.vstack([model.decode(z_batch).mean().numpy() for z_batch in z_mean])
     np.save(os.path.join(GENERATED_DATA_PATH, "imputed_no_gt"), x_val_imputed)
+
+    # reset non-masked pixels to original value
+    x_val_imputed[mask_set == 0] = base_data_masked[mask_set == 0]
+    np.save(os.path.join(GENERATED_DATA_PATH, "imputed"), x_val_imputed)
 
     # Visualize reconstructions
     if FLAGS.data_type in ["hmnist", "sprites"]:

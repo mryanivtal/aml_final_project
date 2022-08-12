@@ -201,10 +201,18 @@ def main(argv):
             indexes = np.append(indexes, np.random.choice(itemindex[0], FLAGS.train_class_number, replace=False), axis=0)
         print(len(indexes))
         x_train_full = x_train_full[indexes]
-        print(x_train_full.shape)
-        x_train_miss = x_train_miss[indexes]
-        m_train_miss = m_train_miss[indexes]
-        y_train = y_train[indexes]
+
+        # TODO:Yaniv: use my own masks in train - same as in generate
+        noise_ratio = 0.750
+        x_train_miss, m_train_miss = utils.apply_noise(x_train_full, noise_ratio)
+        # =================================================
+
+        # TODO:Yaniv: original code =====================
+        # print(x_train_full.shape)
+        # x_train_miss = x_train_miss[indexes]
+        # m_train_miss = m_train_miss[indexes]
+        # y_train = y_train[indexes]
+        # =================================================
 
         # Save X_full data for generation later
         data_output_path = Path(FLAGS.base_dir) / Path('base_data.npy')
@@ -383,6 +391,10 @@ def main(argv):
     ##############
     # Evaluation #
     ##############
+    # # TODO:Remove later, testing load mechanism and implications
+    # latest_checkpoint = tf.train.latest_checkpoint(outdir)
+    # model.load_weights(latest_checkpoint)
+    # # ==============================================
 
     print("Evaluation...")
 

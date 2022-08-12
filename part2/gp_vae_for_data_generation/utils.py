@@ -18,5 +18,13 @@ def display_mnist_chars(images_tensor):
     plt.show()
 
 
+def apply_noise(dataset, bit_flip_ratio):
+    '''
+    Generatates a masked dataset based on an original dataset and a bit_flip ratio
+    '''
+    masked_dataset = dataset.copy()
+    mask_set = np.random.random(size=masked_dataset.shape) < bit_flip_ratio
+    masked_dataset[mask_set & (masked_dataset == 1)] = 1 - masked_dataset[mask_set & (masked_dataset == 1)]
+    return masked_dataset, mask_set
 
 
