@@ -392,8 +392,20 @@ def main(argv):
     # Evaluation #
     ##############
     # # TODO:Remove later, testing load mechanism and implications
-    # latest_checkpoint = tf.train.latest_checkpoint(outdir)
-    # model.load_weights(latest_checkpoint)
+    encoder = BandedJointEncoder if FLAGS.banded_covar else JointEncoder
+    model = GP_VAE(latent_dim=FLAGS.latent_dim, data_dim=data_dim, time_length=time_length,
+                   encoder_sizes=FLAGS.encoder_sizes, encoder=encoder,
+                   decoder_sizes=FLAGS.decoder_sizes, decoder=decoder,
+                   kernel=FLAGS.kernel, sigma=FLAGS.sigma,
+                   length_scale=FLAGS.length_scale, kernel_scales=FLAGS.kernel_scales,
+                   image_preprocessor=image_preprocessor, window_size=FLAGS.window_size,
+                   beta=FLAGS.beta, M=FLAGS.M, K=FLAGS.K, data_type=FLAGS.data_type)
+
+    _ = tf.compat.v1.train.get_or_create_global_step()
+    trainable_vars = model.get_trainable_vars()
+
+    latest_checkpoint = tf.train.latest_checkpoint(outdir)
+    model.load_weights(latest_checkpoint)
     # # ==============================================
 
     print("Evaluation...")

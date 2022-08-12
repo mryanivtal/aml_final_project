@@ -104,8 +104,6 @@ def main(argv):
         FLAGS.decoder_sizes.remove(0)
 
 
-
-
     ###################################
     # Define data specific parameters #
     ###################################
