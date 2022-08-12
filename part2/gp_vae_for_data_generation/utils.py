@@ -2,6 +2,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def display_mnist_chars(images_tensor):
     matplotlib.use('Qt5Agg')
 
@@ -15,6 +16,7 @@ def display_mnist_chars(images_tensor):
             ax[column, image].imshow(pixels, cmap='gray')
 
     plt.show()
+
 
 
 

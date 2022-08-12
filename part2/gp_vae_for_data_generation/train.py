@@ -12,12 +12,11 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 import tensorflow as tf
 
 tf.compat.v1.enable_eager_execution()
-
+from pathlib import Path
 from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.linear_model import LogisticRegression
 
@@ -160,9 +159,9 @@ def main(argv):
 
 
     # TODO: Yaniv addition, display rotated set - full and missing
-    utils.display_mnist_chars(x_train_full[0:5, :, :])
-    utils.display_mnist_chars(x_train_miss[0:5, :, :])
-    utils.display_mnist_chars(m_train_miss[0:5, :, :])
+    # utils.display_mnist_chars(x_train_full[0:5, :, :])
+    # utils.display_mnist_chars(x_train_miss[0:5, :, :])
+    # utils.display_mnist_chars(m_train_miss[0:5, :, :])
 
     # -------- end of addition
 
@@ -211,6 +210,9 @@ def main(argv):
         x_train_miss = x_train_miss[indexes]
         m_train_miss = m_train_miss[indexes]
         y_train = y_train[indexes]
+
+        # Save X_full data for generation later
+        np.save(Path(outdir) / Path('hmnist_mnar_limited_ds_for_generation'), x_train_full)
     # # ------- end of addition
 
     tf_x_train_miss = tf.data.Dataset.from_tensor_slices((x_train_miss, m_train_miss))\
@@ -302,9 +304,9 @@ def main(argv):
     with summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
         for i, (x_seq, m_seq) in enumerate(tf_x_train_miss.take(num_steps)):
             # TODO:Yaniv: Display x_seq, m_seq and combinations to understand data
-            utils.display_mnist_chars(x_seq[0:10])
-            utils.display_mnist_chars(m_seq[0:10])
-            utils.display_mnist_chars(x_seq[0:10] + m_seq[0:10])
+            # utils.display_mnist_chars(x_seq[0:10])
+            # utils.display_mnist_chars(m_seq[0:10])
+            # utils.display_mnist_chars(x_seq[0:10] + m_seq[0:10])
             # ------ end of addition
 
             try:

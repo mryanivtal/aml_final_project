@@ -81,10 +81,6 @@ flags.DEFINE_boolean('testing', False, 'Use the actual test set for testing')
 flags.DEFINE_boolean('banded_covar', False, 'Use a banded covariance matrix instead of a diagonal one for the output of the inference network: Ignored if model_type is not gp-vae')
 flags.DEFINE_integer('batch_size', 64, 'Batch size for training')
 
-# TODO: Miriam addition
-flags.DEFINE_integer('train_class_number', 10000, "max number of class exmaples in training set")
-# --------- end of addition
-
 flags.DEFINE_integer('M', 1, 'Number of samples for ELBO estimation')
 flags.DEFINE_integer('K', 1, 'Number of importance sampling weights')
 
@@ -111,15 +107,15 @@ def main(argv):
     # TODO:Yaniv: update paths if necessary
     # Create paths
     MODEL_PATH = Path(r'D:\docs\DSML_IDC\Semester 4\Advanced ML\Final project\aml_final_project\part2\gp_vae_for_data_generation\models\Fullrun_reproduce_hmnist')
+    BASE_DATA_PATH = Path(r'D:\docs\DSML_IDC\Semester 4\Advanced ML\Final project\aml_final_project\part2\gp_vae_for_data_generation\base_data_for_generation\hmnist_mnar_limited_ds_for_generation.npy')
     GENERATED_DATA_PATH = Path(r'D:\docs\DSML_IDC\Semester 4\Advanced ML\Final project\aml_final_project\part2\gp_vae_for_data_generation\generated_data')
-
 
     ###################################
     # Define data specific parameters #
     ###################################
 
     if FLAGS.data_type == "hmnist":
-        FLAGS.data_dir = "data/hmnist/hmnist_mnar.npz"
+        FLAGS.data_dir = MODEL_PATH / Path("hmnist_mnar_limited_ds_for_generation.npz")
         data_dim = 784
         time_length = 10
         num_classes = 10
@@ -132,7 +128,6 @@ def main(argv):
         data_dim = 35
         time_length = 48
         num_classes = 2
-
         decoder = GaussianDecoder
     elif FLAGS.data_type == "sprites":
         if FLAGS.data_dir == "":
@@ -147,75 +142,28 @@ def main(argv):
 
 
     #############
-    # Load data #
+    # Load and prepare data #
     #############
 
-    data = np.load(FLAGS.data_dir)
-    x_train_full = data['x_train_full']
-    x_train_miss = data['x_train_miss']
-    m_train_miss = data['m_train_miss']
-    if FLAGS.data_type in ['hmnist', 'physionet']:
-        y_train = data['y_train']
+    #load base dataset from disk
+    base_data_full = np.load(BASE_DATA_PATH)
 
+    def apply_noise(dataset, bit_flip_ratio):
+        '''
+        Generatates a masked dataset based on an original dataset and a bit_flip ratio
+        '''
+        masked_dataset = dataset.copy()
+        mask_set = np.random.random(size=masked_dataset.shape) < bit_flip_ratio
+        masked_dataset[mask_set & (masked_dataset == 1)] = 1 - masked_dataset[mask_set & (masked_dataset == 1)]
+        return masked_dataset
 
-    # TODO: Yaniv addition, display rotated set - full and missing
-    # utils.display_mnist_chars(x_train_full[0:5, :, :])
-    # utils.display_mnist_chars(x_train_miss[0:5, :, :])
-    # utils.display_mnist_chars(m_train_miss[0:5, :, :])
+    # Generate masked data
+    noise_ratio = 0.750
+    base_data_masked = apply_noise(base_data_full, noise_ratio)
 
-    # -------- end of addition
-
-
-    if FLAGS.testing:
-        if FLAGS.data_type in ['hmnist', 'sprites']:
-            x_val_full = data['x_test_full']
-            x_val_miss = data['x_test_miss']
-            m_val_miss = data['m_test_miss']
-        if FLAGS.data_type == 'hmnist':
-            y_val = data['y_test']
-        elif FLAGS.data_type == 'physionet':
-            x_val_full = data['x_train_full']
-            x_val_miss = data['x_train_miss']
-            m_val_miss = data['m_train_miss']
-            y_val = data['y_train']
-            m_val_artificial = data["m_train_artificial"]
-    elif FLAGS.data_type in ['hmnist', 'sprites']:
-        x_val_full = x_train_full[val_split:]
-        x_val_miss = x_train_miss[val_split:]
-        m_val_miss = m_train_miss[val_split:]
-        if FLAGS.data_type == 'hmnist':
-            y_val = y_train[val_split:]
-        x_train_full = x_train_full[:val_split]
-        x_train_miss = x_train_miss[:val_split]
-        m_train_miss = m_train_miss[:val_split]
-        y_train = y_train[:val_split]
-    elif FLAGS.data_type == 'physionet':
-        x_val_full = data["x_val_full"]  # full for artificial missings
-        x_val_miss = data["x_val_miss"]
-        m_val_miss = data["m_val_miss"]
-        m_val_artificial = data["m_val_artificial"]
-        y_val = data["y_val"]
-    else:
-        raise ValueError("Data type must be one of ['hmnist', 'physionet', 'sprites']")
-
-    # TODO:Miriam addition
-    if FLAGS.train_class_number:
-        indexes = np.empty(0,dtype=int)
-        for value in np.unique(y_train):
-            itemindex = np.where(y_train == value)
-            indexes = np.append(indexes, np.random.choice(itemindex[0], FLAGS.train_class_number, replace=False), axis=0)
-        print(len(indexes))
-        x_train_full = x_train_full[indexes]
-        print(x_train_full.shape)
-        x_train_miss = x_train_miss[indexes]
-        m_train_miss = m_train_miss[indexes]
-        y_train = y_train[indexes]
-    # # ------- end of addition
-
-    tf_x_train_miss = tf.data.Dataset.from_tensor_slices((x_train_miss, m_train_miss))\
-                                     .shuffle(len(x_train_miss)).batch(FLAGS.batch_size).repeat()
-    tf_x_val_miss = tf.data.Dataset.from_tensor_slices((x_val_miss, m_val_miss)).batch(FLAGS.batch_size).repeat()
-    tf_x_val_miss = tf.compat.v1.data.make_one_shot_iterator(tf_x_val_miss)
+    # Display rotated set - base and masked
+    utils.display_mnist_chars(base_data_full[0:5, :, :])
+    utils.display_mnist_chars(base_data_masked[0:5, :, :])
 
     # Build Conv2D preprocessor for image data
     if FLAGS.data_type in ['hmnist', 'sprites']:
@@ -257,102 +205,30 @@ def main(argv):
 
 
     ########################
-    # Training preparation #
+    # preparation #
     ########################
 
     print("GPU support: ", tf.test.is_gpu_available())
-
-    # print("Training...")
-    _ = tf.compat.v1.train.get_or_create_global_step()
-    trainable_vars = model.get_trainable_vars()
-    # optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
-
+    _ = model.get_trainable_vars()  # Required to compile the model
     print("Encoder: ", model.encoder.net.summary())
     print("Decoder: ", model.decoder.net.summary())
 
-
-    # if FLAGS.num_steps == 0:
-    #     num_steps = FLAGS.num_epochs * len(x_train_miss) // FLAGS.batch_size
-    # else:
-    #     num_steps = FLAGS.num_steps
-    #
-    # if FLAGS.print_interval == 0:
-    #     FLAGS.print_interval = num_steps // FLAGS.num_epochs
-
-
-    ##############
-    # Evaluation #
-    ##############
-    # PREPS =======================================
-
-    # Load model checkpoint
+    # Load model checkpoint (Trained model parameters)
     latest_checkpoint = tf.train.latest_checkpoint(MODEL_PATH)
     model.load_weights(latest_checkpoint)
-    # PREPS =======================================
 
-    print("Evaluation...")
-
+    ##############
+    # Imputation / Generation #
+    ##############
+    print("Generating...")
     # Split data on batches
-    x_val_miss_batches = np.array_split(x_val_miss, FLAGS.batch_size, axis=0)
-    x_val_full_batches = np.array_split(x_val_full, FLAGS.batch_size, axis=0)
-    if FLAGS.data_type == 'physionet':
-        m_val_batches = np.array_split(m_val_artificial, FLAGS.batch_size, axis=0)
-    else:
-        m_val_batches = np.array_split(m_val_miss, FLAGS.batch_size, axis=0)
-    # get_val_batches = lambda: zip(x_val_miss_batches, x_val_full_batches, m_val_batches)
-
+    x_val_miss_batches = np.array_split(base_data_masked, FLAGS.batch_size, axis=0)
 
     # Save imputed values
     z_mean = [model.encode(x_batch).mean().numpy() for x_batch in x_val_miss_batches]
     np.save(os.path.join(GENERATED_DATA_PATH, "z_mean"), np.vstack(z_mean))
     x_val_imputed = np.vstack([model.decode(z_batch).mean().numpy() for z_batch in z_mean])
     np.save(os.path.join(GENERATED_DATA_PATH, "imputed_no_gt"), x_val_imputed)
-
-    # impute gt observed values
-    x_val_imputed[m_val_miss == 0] = x_val_miss[m_val_miss == 0]
-    np.save(os.path.join(GENERATED_DATA_PATH, "imputed"), x_val_imputed)
-
-    if FLAGS.data_type == "hmnist":
-        # AUROC evaluation using Logistic Regression
-        x_val_imputed = np.round(x_val_imputed)
-        x_val_imputed = x_val_imputed.reshape([-1, time_length * data_dim])
-        np.save(GENERATED_DATA_PATH / Path('imputed_x'), x_val_imputed)
-
-        cls_model = LogisticRegression(solver='lbfgs', multi_class='multinomial', tol=1e-10, max_iter=10000)
-        val_split = len(x_val_imputed) // 2
-
-        cls_model.fit(x_val_imputed[:val_split], y_val[:val_split])
-        probs = cls_model.predict_proba(x_val_imputed[val_split:])
-
-        auprc = average_precision_score(np.eye(num_classes)[y_val[val_split:]], probs)
-        auroc = roc_auc_score(np.eye(num_classes)[y_val[val_split:]], probs)
-        print("AUROC: {:.4f}".format(auroc))
-        print("AUPRC: {:.4f}".format(auprc))
-
-    elif FLAGS.data_type == "sprites":
-        auroc, auprc = 0, 0
-
-    elif FLAGS.data_type == "physionet":
-        # Uncomment to preserve some z_samples and their reconstructions
-        # for i in range(5):
-        #     z_sample = [model.encode(x_batch).sample().numpy() for x_batch in x_val_miss_batches]
-        #     np.save(os.path.join(outdir, "z_sample_{}".format(i)), np.vstack(z_sample))
-        #     x_val_imputed_sample = np.vstack([model.decode(z_batch).mean().numpy() for z_batch in z_sample])
-        #     np.save(os.path.join(outdir, "imputed_sample_{}_no_gt".format(i)), x_val_imputed_sample)
-        #     x_val_imputed_sample[m_val_miss == 0] = x_val_miss[m_val_miss == 0]
-        #     np.save(os.path.join(outdir, "imputed_sample_{}".format(i)), x_val_imputed_sample)
-
-        # AUROC evaluation using Logistic Regression
-        x_val_imputed = x_val_imputed.reshape([-1, time_length * data_dim])
-        val_split = len(x_val_imputed) // 2
-        cls_model = LogisticRegression(solver='liblinear', tol=1e-10, max_iter=10000)
-        cls_model.fit(x_val_imputed[:val_split], y_val[:val_split])
-        probs = cls_model.predict_proba(x_val_imputed[val_split:])[:, 1]
-        auprc = average_precision_score(y_val[val_split:], probs)
-        auroc = roc_auc_score(y_val[val_split:], probs)
-
-        print("AUROC: {:.4f}".format(auroc))
-        print("AUPRC: {:.4f}".format(auprc))
 
     # Visualize reconstructions
     if FLAGS.data_type in ["hmnist", "sprites"]:
@@ -364,10 +240,10 @@ def main(argv):
             img_shape = (64, 64, 3)
             cmap = None
 
-        fig, axes = plt.subplots(nrows=3, ncols=x_val_miss.shape[1], figsize=(2*x_val_miss.shape[1], 6))
+        fig, axes = plt.subplots(nrows=3, ncols=base_data_masked.shape[1], figsize=(2*base_data_masked.shape[1], 6))
 
-        x_hat = model.decode(model.encode(x_val_miss[img_index: img_index+1]).mean()).mean().numpy()
-        seqs = [x_val_miss[img_index:img_index+1], x_hat, x_val_full[img_index:img_index+1]]
+        x_hat = model.decode(model.encode(base_data_masked[img_index: img_index+1]).mean()).mean().numpy()
+        seqs = [base_data_masked[img_index:img_index+1], x_hat]
 
         for axs, seq in zip(axes, seqs):
             for ax, img in zip(axs, seq[0]):
@@ -377,27 +253,6 @@ def main(argv):
         suptitle = FLAGS.model_type + f" reconstruction"
         fig.suptitle(suptitle, size=18)
         fig.savefig(os.path.join(GENERATED_DATA_PATH, FLAGS.data_type + "_reconstruction.pdf"))
-
-    results_all = [FLAGS.seed, FLAGS.model_type, FLAGS.data_type, FLAGS.kernel, FLAGS.beta, FLAGS.latent_dim,
-                   FLAGS.num_epochs, FLAGS.batch_size, FLAGS.learning_rate, FLAGS.window_size,
-                   FLAGS.kernel_scales, FLAGS.sigma, FLAGS.length_scale,
-                   len(FLAGS.encoder_sizes), FLAGS.encoder_sizes[0] if len(FLAGS.encoder_sizes) > 0 else 0,
-                   len(FLAGS.decoder_sizes), FLAGS.decoder_sizes[0] if len(FLAGS.decoder_sizes) > 0 else 0,
-                   FLAGS.cnn_kernel_size, FLAGS.cnn_sizes,
-                   auprc, auroc, FLAGS.testing, FLAGS.data_dir]
-
-    with open(os.path.join(GENERATED_DATA_PATH, "results.tsv"), "w") as outfile:
-        outfile.write("seed\tmodel\tdata\tkernel\tbeta\tz_size\tnum_epochs"
-                      "\tbatch_size\tlearning_rate\twindow_size\tkernel_scales\t"
-                      "sigma\tlength_scale\tencoder_depth\tencoder_width\t"
-                      "decoder_depth\tdecoder_width\tcnn_kernel_size\t"
-                      "cnn_sizes\tAUPRC\tAUROC\ttesting\tdata_dir\n")
-        outfile.write("\t".join(map(str, results_all)))
-
-    # with open(os.path.join(GENERATED_DATA_PATH, "training_curve.tsv"), "w") as outfile:
-    #     outfile.write("\t".join(map(str, losses_train)))
-    #     outfile.write("\n")
-    #     outfile.write("\t".join(map(str, losses_val)))
 
     print("Generation finished.")
 
