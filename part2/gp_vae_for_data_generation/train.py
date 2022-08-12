@@ -33,14 +33,14 @@ from lib.models import *
 FLAGS = flags.FLAGS
 
 # HMNIST config
-# flags.DEFINE_integer('latent_dim', 256, 'Dimensionality of the latent space')
-# flags.DEFINE_list('encoder_sizes', [256, 256], 'Layer sizes of the encoder')
-# flags.DEFINE_list('decoder_sizes', [256, 256, 256], 'Layer sizes of the decoder')
-# flags.DEFINE_integer('window_size', 3, 'Window size for the inference CNN: Ignored if model_type is not gp-vae')
-# flags.DEFINE_float('sigma', 1.0, 'Sigma value for the GP prior: Ignored if model_type is not gp-vae')
-# flags.DEFINE_float('length_scale', 2.0, 'Length scale value for the GP prior: Ignored if model_type is not gp-vae')
-# flags.DEFINE_float('beta', 0.8, 'Factor to weigh the KL term (similar to beta-VAE)')
-# flags.DEFINE_integer('num_epochs', 20, 'Number of training epochs')
+flags.DEFINE_integer('latent_dim', 256, 'Dimensionality of the latent space')
+flags.DEFINE_list('encoder_sizes', [256, 256], 'Layer sizes of the encoder')
+flags.DEFINE_list('decoder_sizes', [256, 256, 256], 'Layer sizes of the decoder')
+flags.DEFINE_integer('window_size', 3, 'Window size for the inference CNN: Ignored if model_type is not gp-vae')
+flags.DEFINE_float('sigma', 1.0, 'Sigma value for the GP prior: Ignored if model_type is not gp-vae')
+flags.DEFINE_float('length_scale', 2.0, 'Length scale value for the GP prior: Ignored if model_type is not gp-vae')
+flags.DEFINE_float('beta', 0.8, 'Factor to weigh the KL term (similar to beta-VAE)')
+flags.DEFINE_integer('num_epochs', 20, 'Number of training epochs')
 
 # SPRITES config GP-VAE
 # flags.DEFINE_integer('latent_dim', 256, 'Dimensionality of the latent space')
@@ -53,14 +53,14 @@ FLAGS = flags.FLAGS
 # flags.DEFINE_integer('num_epochs', 20, 'Number of training epochs')
 
 # Physionet config
-flags.DEFINE_integer('latent_dim', 35, 'Dimensionality of the latent space')
-flags.DEFINE_list('encoder_sizes', [128, 128], 'Layer sizes of the encoder')
-flags.DEFINE_list('decoder_sizes', [256, 256], 'Layer sizes of the decoder')
-flags.DEFINE_integer('window_size', 24, 'Window size for the inference CNN: Ignored if model_type is not gp-vae')
-flags.DEFINE_float('sigma', 1.005, 'Sigma value for the GP prior: Ignored if model_type is not gp-vae')
-flags.DEFINE_float('length_scale', 7.0, 'Length scale value for the GP prior: Ignored if model_type is not gp-vae')
-flags.DEFINE_float('beta', 0.2, 'Factor to weigh the KL term (similar to beta-VAE)')
-flags.DEFINE_integer('num_epochs', 40, 'Number of training epochs')
+# flags.DEFINE_integer('latent_dim', 35, 'Dimensionality of the latent space')
+# flags.DEFINE_list('encoder_sizes', [128, 128], 'Layer sizes of the encoder')
+# flags.DEFINE_list('decoder_sizes', [256, 256], 'Layer sizes of the decoder')
+# flags.DEFINE_integer('window_size', 24, 'Window size for the inference CNN: Ignored if model_type is not gp-vae')
+# flags.DEFINE_float('sigma', 1.005, 'Sigma value for the GP prior: Ignored if model_type is not gp-vae')
+# flags.DEFINE_float('length_scale', 7.0, 'Length scale value for the GP prior: Ignored if model_type is not gp-vae')
+# flags.DEFINE_float('beta', 0.2, 'Factor to weigh the KL term (similar to beta-VAE)')
+# flags.DEFINE_integer('num_epochs', 40, 'Number of training epochs')
 
 # Flags with common default values for all three datasets
 flags.DEFINE_float('learning_rate', 1e-3, 'Learning rate for training')
@@ -68,7 +68,7 @@ flags.DEFINE_float('gradient_clip', 1e4, 'Maximum global gradient norm for the g
 flags.DEFINE_integer('num_steps', 0, 'Number of training steps: If non-zero it overwrites num_epochs')
 flags.DEFINE_integer('print_interval', 0, 'Interval for printing the loss and saving the model during training')
 flags.DEFINE_string('exp_name', "debug", 'Name of the experiment')
-flags.DEFINE_string('basedir', "models", 'Directory where the models should be stored')
+flags.DEFINE_string('base_dir', "output1", 'Directory where the models should be stored')
 flags.DEFINE_string('data_dir', "", 'Directory from where the data should be read in')
 flags.DEFINE_enum('data_type', 'hmnist', ['hmnist', 'physionet', 'sprites'], 'Type of data to be trained on')
 flags.DEFINE_integer('seed', 1337, 'Seed for the random number generator')
@@ -76,10 +76,10 @@ flags.DEFINE_enum('model_type', 'gp-vae', ['vae', 'hi-vae', 'gp-vae'], 'Type of 
 flags.DEFINE_integer('cnn_kernel_size', 3, 'Kernel size for the CNN preprocessor')
 flags.DEFINE_list('cnn_sizes', [256], 'Number of filters for the layers of the CNN preprocessor')
 flags.DEFINE_boolean('testing', False, 'Use the actual test set for testing')
-flags.DEFINE_boolean('banded_covar', False, 'Use a banded covariance matrix instead of a diagonal one for the output of the inference network: Ignored if model_type is not gp-vae')
+flags.DEFINE_boolean('banded_covar', False, 'Use a banded covariance matrix instead of a diagonal one for the output1 of the inference network: Ignored if model_type is not gp-vae')
 flags.DEFINE_integer('batch_size', 64, 'Batch size for training')
 
-# TODO: Miriam addition
+# TODO: Additions
 flags.DEFINE_integer('train_class_number', 10000, "max number of class exmaples in training set")
 # --------- end of addition
 
@@ -107,17 +107,14 @@ def main(argv):
 
     # Make up full exp name
     timestamp = datetime.now().strftime("%y%m%d")
-    full_exp_name = "{}_{}".format(timestamp, FLAGS.exp_name)
-    outdir = os.path.join(FLAGS.basedir, full_exp_name)
+    outdir = os.path.join(FLAGS.base_dir, 'model')
     if not os.path.exists(outdir): os.mkdir(outdir)
     checkpoint_prefix = os.path.join(outdir, "ckpt")
-    print("Full exp name: ", full_exp_name)
-
+    print("Full exp name: ", outdir)
 
     ###################################
     # Define data specific parameters #
     ###################################
-
     if FLAGS.data_type == "hmnist":
         FLAGS.data_dir = "data/hmnist/hmnist_mnar.npz"
         data_dim = 784
@@ -162,9 +159,7 @@ def main(argv):
     # utils.display_mnist_chars(x_train_full[0:5, :, :])
     # utils.display_mnist_chars(x_train_miss[0:5, :, :])
     # utils.display_mnist_chars(m_train_miss[0:5, :, :])
-
     # -------- end of addition
-
 
     if FLAGS.testing:
         if FLAGS.data_type in ['hmnist', 'sprites']:
@@ -212,7 +207,8 @@ def main(argv):
         y_train = y_train[indexes]
 
         # Save X_full data for generation later
-        np.save(Path(outdir) / Path('hmnist_mnar_limited_ds_for_generation'), x_train_full)
+        data_output_path = Path(FLAGS.base_dir) / Path('base_data.npy')
+        np.save(data_output_path, x_train_full)
     # # ------- end of addition
 
     tf_x_train_miss = tf.data.Dataset.from_tensor_slices((x_train_miss, m_train_miss))\
@@ -303,11 +299,12 @@ def main(argv):
     t0 = time.time()
     with summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
         for i, (x_seq, m_seq) in enumerate(tf_x_train_miss.take(num_steps)):
-            # TODO:Yaniv: Display x_seq, m_seq and combinations to understand data
+
+            # # Display x_seq, m_seq and combinations to understand data
             # utils.display_mnist_chars(x_seq[0:10])
             # utils.display_mnist_chars(m_seq[0:10])
             # utils.display_mnist_chars(x_seq[0:10] + m_seq[0:10])
-            # ------ end of addition
+            # # ------ end of addition
 
             try:
                 with tf.GradientTape() as tape:
