@@ -203,8 +203,8 @@ def main(argv):
         x_train_full = x_train_full[indexes]
 
         # TODO:Yaniv: use my own masks in train - same as in generate
-        noise_ratio = 0.750
-        x_train_miss, m_train_miss = utils.apply_noise(x_train_full, noise_ratio)
+        x_train_miss, m_train_miss = utils.apply_mnar_noise(x_train_full, white_flip_ratio=0.8, black_flip_ratio=0.2)
+        x_val_miss, m_val_miss = utils.apply_mnar_noise(x_val_full, white_flip_ratio=0.8, black_flip_ratio=0.2)           # Also use random masks in validation set
         # =================================================
 
         # TODO:Yaniv: original code =====================

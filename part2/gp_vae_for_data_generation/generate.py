@@ -154,8 +154,7 @@ def main(argv):
     base_data_full = np.load(BASE_DATA_PATH)
 
     # Generate masked data
-    noise_ratio = 0.750
-    base_data_masked, mask_set = utils.apply_noise(base_data_full, noise_ratio)
+    base_data_masked, mask_set = utils.apply_mnar_noise(base_data_full, white_flip_ratio=0.8, black_flip_ratio=0.2)
 
     # Display rotated set - base and masked
     # utils.display_mnist_chars(base_data_full[0:5, :, :])
