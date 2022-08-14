@@ -4,7 +4,7 @@ Script to train the proposed GP-VAE model.
 
 """
 import threading
-
+import pickle
 import utils
 import sys
 import os
@@ -282,6 +282,7 @@ def main(argv):
         saver = tf.compat.v1.train.Checkpoint(optimizer=optimizer, encoder=model.encoder.net,
                                               decoder=model.decoder.net, preprocessor=model.preprocessor.net,
                                               optimizer_step=tf.compat.v1.train.get_or_create_global_step())
+
     else:
         saver = tf.compat.v1.train.Checkpoint(optimizer=optimizer, encoder=model.encoder.net, decoder=model.decoder.net,
                                               optimizer_step=tf.compat.v1.train.get_or_create_global_step())
@@ -334,6 +335,7 @@ def main(argv):
                     print("Train loss = {:.3f} | NLL = {:.3f} | KL = {:.3f}".format(loss, nll, kl))
 
                     saver.save(checkpoint_prefix)
+
                     tf.contrib.summary.scalar("loss_train", loss)
                     tf.contrib.summary.scalar("kl_train", kl)
                     tf.contrib.summary.scalar("nll_train", nll)
@@ -387,29 +389,55 @@ def main(argv):
                     ipdb.set_trace()
                 break
 
+    weights_file_path = Path(outdir) / Path('final_model_weights.pickle')
+    model_weights = model.get_weights()
+    with open(weights_file_path, mode='wb') as file:
+        pickle.dump(model_weights, file)
+
 
     ##############
     # Evaluation #
     ##############
-    # # TODO:Remove later, testing load mechanism and implications
-    encoder = BandedJointEncoder if FLAGS.banded_covar else JointEncoder
-    model = GP_VAE(latent_dim=FLAGS.latent_dim, data_dim=data_dim, time_length=time_length,
-                   encoder_sizes=FLAGS.encoder_sizes, encoder=encoder,
-                   decoder_sizes=FLAGS.decoder_sizes, decoder=decoder,
-                   kernel=FLAGS.kernel, sigma=FLAGS.sigma,
-                   length_scale=FLAGS.length_scale, kernel_scales=FLAGS.kernel_scales,
-                   image_preprocessor=image_preprocessor, window_size=FLAGS.window_size,
-                   beta=FLAGS.beta, M=FLAGS.M, K=FLAGS.K, data_type=FLAGS.data_type)
-
-    _ = tf.compat.v1.train.get_or_create_global_step()
-    trainable_vars = model.get_trainable_vars()
-
-    latest_checkpoint = tf.train.latest_checkpoint(outdir)
-    model.load_weights(latest_checkpoint)
-    # # ==============================================
+    # # TODO:Yaniv: remove afterwards ============================================================
+    # if FLAGS.model_type == "vae":
+    #     model = VAE(latent_dim=FLAGS.latent_dim, data_dim=data_dim, time_length=time_length,
+    #                 encoder_sizes=FLAGS.encoder_sizes, encoder=DiagonalEncoder,
+    #                 decoder_sizes=FLAGS.decoder_sizes, decoder=decoder,
+    #                 image_preprocessor=image_preprocessor, window_size=FLAGS.window_size,
+    #                 beta=FLAGS.beta, M=FLAGS.M, K=FLAGS.K)
+    # elif FLAGS.model_type == "hi-vae":
+    #     model = HI_VAE(latent_dim=FLAGS.latent_dim, data_dim=data_dim, time_length=time_length,
+    #                    encoder_sizes=FLAGS.encoder_sizes, encoder=DiagonalEncoder,
+    #                    decoder_sizes=FLAGS.decoder_sizes, decoder=decoder,
+    #                    image_preprocessor=image_preprocessor, window_size=FLAGS.window_size,
+    #                    beta=FLAGS.beta, M=FLAGS.M, K=FLAGS.K)
+    # elif FLAGS.model_type == "gp-vae":
+    #     encoder = BandedJointEncoder if FLAGS.banded_covar else JointEncoder
+    #     model = GP_VAE(latent_dim=FLAGS.latent_dim, data_dim=data_dim, time_length=time_length,
+    #                    encoder_sizes=FLAGS.encoder_sizes, encoder=encoder,
+    #                    decoder_sizes=FLAGS.decoder_sizes, decoder=decoder,
+    #                    kernel=FLAGS.kernel, sigma=FLAGS.sigma,
+    #                    length_scale=FLAGS.length_scale, kernel_scales = FLAGS.kernel_scales,
+    #                    image_preprocessor=image_preprocessor, window_size=FLAGS.window_size,
+    #                    beta=FLAGS.beta, M=FLAGS.M, K=FLAGS.K, data_type=FLAGS.data_type)
+    # else:
+    #     raise ValueError("Model type must be one of ['vae', 'hi-vae', 'gp-vae']")
+    #
+    # _ = tf.compat.v1.train.get_or_create_global_step()
+    # trainable_vars = model.get_trainable_vars()
+    # optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
+    #
+    # # Load model checkpoint (Trained model parameters)
+    # with open(weights_file_path, mode='rb') as file:
+    #     model_weights = pickle.load(file)
+    #
+    # model.set_weights(model_weights)
+    #
+    # print("Encoder: ", model.encoder.net.summary())
+    # print("Decoder: ", model.decoder.net.summary())
+    # # TODO:Yaniv: remove ends ============================================================
 
     print("Evaluation...")
-
     # Split data on batches
     x_val_miss_batches = np.array_split(x_val_miss, FLAGS.batch_size, axis=0)
     x_val_full_batches = np.array_split(x_val_full, FLAGS.batch_size, axis=0)

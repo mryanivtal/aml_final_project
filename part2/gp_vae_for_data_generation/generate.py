@@ -3,6 +3,7 @@
 Script to generate data based on existing GP-VAE model.
 
 """
+import pickle
 from pathlib import Path
 
 import threading
@@ -111,7 +112,7 @@ def main(argv):
     if FLAGS.data_type == "hmnist":
         # TODO:Yaniv: update paths if necessary
         BASE_PATH = Path(FLAGS.base_dir)
-        MODEL_PATH = BASE_PATH / Path('model')
+        MODEL_PATH = BASE_PATH / Path('model/final_model_weights.pickle')
         BASE_DATA_PATH = BASE_PATH / Path('base_data.npy')
         GENERATED_DATA_PATH = BASE_PATH / Path('generated_data')
 
@@ -171,7 +172,6 @@ def main(argv):
     ###############
     # Build model #
     ###############
-
     if FLAGS.model_type == "vae":
         model = VAE(latent_dim=FLAGS.latent_dim, data_dim=data_dim, time_length=time_length,
                     encoder_sizes=FLAGS.encoder_sizes, encoder=DiagonalEncoder,
@@ -190,24 +190,24 @@ def main(argv):
                        encoder_sizes=FLAGS.encoder_sizes, encoder=encoder,
                        decoder_sizes=FLAGS.decoder_sizes, decoder=decoder,
                        kernel=FLAGS.kernel, sigma=FLAGS.sigma,
-                       length_scale=FLAGS.length_scale, kernel_scales = FLAGS.kernel_scales,
+                       length_scale=FLAGS.length_scale, kernel_scales=FLAGS.kernel_scales,
                        image_preprocessor=image_preprocessor, window_size=FLAGS.window_size,
                        beta=FLAGS.beta, M=FLAGS.M, K=FLAGS.K, data_type=FLAGS.data_type)
     else:
         raise ValueError("Model type must be one of ['vae', 'hi-vae', 'gp-vae']")
 
-    # Load last saved checkpoint
-    print("GPU support: ", tf.test.is_gpu_available())
-
     _ = tf.compat.v1.train.get_or_create_global_step()
-    _ = model.get_trainable_vars()
+    trainable_vars = model.get_trainable_vars()
+    optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
+
+    # Load model checkpoint (Trained model parameters)
+    with open(MODEL_PATH, mode='rb') as file:
+        model_weights = pickle.load(file)
+
+    model.set_weights(model_weights)
 
     print("Encoder: ", model.encoder.net.summary())
     print("Decoder: ", model.decoder.net.summary())
-
-    # Load model checkpoint (Trained model parameters)
-    latest_checkpoint = tf.train.latest_checkpoint(MODEL_PATH)
-    model.load_weights(latest_checkpoint)
 
     ##############
     # Imputation / Generation #
@@ -241,7 +241,7 @@ def main(argv):
         fig, axes = plt.subplots(nrows=3, ncols=base_data_masked.shape[1], figsize=(2*base_data_masked.shape[1], 6))
 
         x_hat = model.decode(model.encode(base_data_masked[img_index: img_index+1]).mean()).mean().numpy()
-        seqs = [base_data_masked[img_index:img_index+1], x_hat>0.5]
+        seqs = [base_data_masked[img_index:img_index+1], x_hat, base_data_full[img_index:img_index+1]]
 
         for axs, seq in zip(axes, seqs):
             for ax, img in zip(axs, seq[0]):
