@@ -241,37 +241,8 @@ def main(argv):
             img_shape = (64, 64, 3)
             cmap = None
 
-        # TODO:Yaniv: addition: display 20 samples =================================
-        samples_to_show = 30
-        idx = np.random.randint(0, len(x_val_imputed_no_gt), samples_to_show)
-        fig, axes = plt.subplots(nrows=samples_to_show * 3,
-                                 ncols=base_data_masked.shape[1],
-                                 figsize=(2 * base_data_masked.shape[1], 2 * 3 * samples_to_show))
-        zip_seqs = list(zip(base_data_full[idx], x_val_imputed_no_gt[idx], x_val_imputed[idx]))
-        seqs = [item for z in zip_seqs for item in z]
-        for axs, seq in zip(axes, seqs):
-            for ax, img in zip(axs, seq):
-                ax.imshow(img.reshape(img_shape), cmap=cmap)
-                ax.axis('off')
-        suptitle = FLAGS.model_type + f" reconstruction"
-        fig.suptitle(suptitle, size=18)
-        fig.savefig(os.path.join(GENERATED_DATA_PATH, FLAGS.data_type + f"_{samples_to_show}_samples"))
-        # TODO:Yaniv: end of addition =============================================
-
-
-        fig, axes = plt.subplots(nrows=3, ncols=base_data_masked.shape[1], figsize=(2*base_data_masked.shape[1], 6))
-
-        x_hat = model.decode(model.encode(base_data_masked[img_index: img_index+1]).mean()).mean().numpy()
-        seqs = [base_data_masked[img_index:img_index+1], x_hat, base_data_full[img_index:img_index+1]]
-
-        for axs, seq in zip(axes, seqs):
-            for ax, img in zip(axs, seq[0]):
-                ax.imshow(img.reshape(img_shape), cmap=cmap)
-                ax.axis('off')
-
-        suptitle = FLAGS.model_type + f" reconstruction"
-        fig.suptitle(suptitle, size=18)
-        fig.savefig(os.path.join(GENERATED_DATA_PATH, FLAGS.data_type + "_reconstruction.pdf"))
+        filename = str(GENERATED_DATA_PATH / Path(FLAGS.data_type))
+        utils.save_visual_sample_triplets_to_file(30, filename, (28, 28), base_data_full, x_val_imputed_no_gt, x_val_imputed)
 
     print("Generation finished.")
 
