@@ -81,6 +81,9 @@ flags.DEFINE_integer('batch_size', 64, 'Batch size for training')
 
 # TODO: Additions
 flags.DEFINE_integer('train_class_number', 10000, "max number of class exmaples in training set")
+flags.DEFINE_float('white_flip_ratio', 0.6, 'Learning rate for training')
+flags.DEFINE_float('black_flip_ratio', 0.75, 'Learning rate for training')
+
 # --------- end of addition
 
 flags.DEFINE_integer('M', 1, 'Number of samples for ELBO estimation')
@@ -203,8 +206,8 @@ def main(argv):
         x_train_full = x_train_full[indexes]
 
         # TODO:Yaniv: use my own masks in train - same as in generate
-        x_train_miss, m_train_miss = utils.apply_mnar_noise(x_train_full, white_flip_ratio=0.8, black_flip_ratio=0.2)
-        x_val_miss, m_val_miss = utils.apply_mnar_noise(x_val_full, white_flip_ratio=0.8, black_flip_ratio=0.2)           # Also use random masks in validation set
+        x_train_miss, m_train_miss = utils.apply_mnar_noise(x_train_full, white_flip_ratio=FLAGS.white_flip_ratio, black_flip_ratio=FLAGS.black_flip_ratio)
+        x_val_miss, m_val_miss = utils.apply_mnar_noise(x_val_full, white_flip_ratio=FLAGS.white_flip_ratio, black_flip_ratio=FLAGS.black_flip_ratio)           # Also use random masks in validation set
         # =================================================
 
         # TODO:Yaniv: original code =====================
@@ -398,44 +401,6 @@ def main(argv):
     ##############
     # Evaluation #
     ##############
-    # # TODO:Yaniv: remove afterwards ============================================================
-    # if FLAGS.model_type == "vae":
-    #     model = VAE(latent_dim=FLAGS.latent_dim, data_dim=data_dim, time_length=time_length,
-    #                 encoder_sizes=FLAGS.encoder_sizes, encoder=DiagonalEncoder,
-    #                 decoder_sizes=FLAGS.decoder_sizes, decoder=decoder,
-    #                 image_preprocessor=image_preprocessor, window_size=FLAGS.window_size,
-    #                 beta=FLAGS.beta, M=FLAGS.M, K=FLAGS.K)
-    # elif FLAGS.model_type == "hi-vae":
-    #     model = HI_VAE(latent_dim=FLAGS.latent_dim, data_dim=data_dim, time_length=time_length,
-    #                    encoder_sizes=FLAGS.encoder_sizes, encoder=DiagonalEncoder,
-    #                    decoder_sizes=FLAGS.decoder_sizes, decoder=decoder,
-    #                    image_preprocessor=image_preprocessor, window_size=FLAGS.window_size,
-    #                    beta=FLAGS.beta, M=FLAGS.M, K=FLAGS.K)
-    # elif FLAGS.model_type == "gp-vae":
-    #     encoder = BandedJointEncoder if FLAGS.banded_covar else JointEncoder
-    #     model = GP_VAE(latent_dim=FLAGS.latent_dim, data_dim=data_dim, time_length=time_length,
-    #                    encoder_sizes=FLAGS.encoder_sizes, encoder=encoder,
-    #                    decoder_sizes=FLAGS.decoder_sizes, decoder=decoder,
-    #                    kernel=FLAGS.kernel, sigma=FLAGS.sigma,
-    #                    length_scale=FLAGS.length_scale, kernel_scales = FLAGS.kernel_scales,
-    #                    image_preprocessor=image_preprocessor, window_size=FLAGS.window_size,
-    #                    beta=FLAGS.beta, M=FLAGS.M, K=FLAGS.K, data_type=FLAGS.data_type)
-    # else:
-    #     raise ValueError("Model type must be one of ['vae', 'hi-vae', 'gp-vae']")
-    #
-    # _ = tf.compat.v1.train.get_or_create_global_step()
-    # trainable_vars = model.get_trainable_vars()
-    # optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
-    #
-    # # Load model checkpoint (Trained model parameters)
-    # with open(weights_file_path, mode='rb') as file:
-    #     model_weights = pickle.load(file)
-    #
-    # model.set_weights(model_weights)
-    #
-    # print("Encoder: ", model.encoder.net.summary())
-    # print("Decoder: ", model.decoder.net.summary())
-    # # TODO:Yaniv: remove ends ============================================================
 
     print("Evaluation...")
     # Split data on batches

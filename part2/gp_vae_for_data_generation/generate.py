@@ -88,6 +88,8 @@ flags.DEFINE_integer('K', 1, 'Number of importance sampling weights')
 flags.DEFINE_enum('kernel', 'cauchy', ['rbf', 'diffusion', 'matern', 'cauchy'], 'Kernel to be used for the GP prior: Ignored if model_type is not (m)gp-vae')
 flags.DEFINE_integer('kernel_scales', 1, 'Number of different length scales sigma for the GP prior: Ignored if model_type is not gp-vae')
 
+flags.DEFINE_float('white_flip_ratio', 0.6, 'Learning rate for training')
+flags.DEFINE_float('black_flip_ratio', 0.75, 'Learning rate for training')
 
 def main(argv):
     del argv  # unused
@@ -153,7 +155,7 @@ def main(argv):
     base_data_full = np.load(BASE_DATA_PATH)
 
     # Generate masked data
-    base_data_masked, mask_set = utils.apply_mnar_noise(base_data_full, white_flip_ratio=0.8, black_flip_ratio=0.2)
+    base_data_masked, mask_set = utils.apply_mnar_noise(base_data_full, white_flip_ratio=FLAGS.white_flip_ratio, black_flip_ratio=FLAGS.black_flip_ratio)
 
     # Display rotated set - base and masked
     # utils.display_mnist_chars(base_data_full[0:5, :, :])
@@ -221,10 +223,11 @@ def main(argv):
     # Save imputed values
     z_mean = [model.encode(x_batch).mean().numpy() for x_batch in x_val_miss_batches]
     np.save(os.path.join(GENERATED_DATA_PATH, "z_mean"), np.vstack(z_mean))
-    x_val_imputed = np.vstack([model.decode(z_batch).mean().numpy() for z_batch in z_mean])
-    np.save(os.path.join(GENERATED_DATA_PATH, "imputed_no_gt"), x_val_imputed)
+    x_val_imputed_no_gt = np.vstack([model.decode(z_batch).mean().numpy() for z_batch in z_mean])
+    np.save(os.path.join(GENERATED_DATA_PATH, "imputed_no_gt"), x_val_imputed_no_gt)
 
     # reset non-masked pixels to original value
+    x_val_imputed = x_val_imputed_no_gt.copy()
     x_val_imputed[mask_set == 0] = base_data_masked[mask_set == 0]
     np.save(os.path.join(GENERATED_DATA_PATH, "imputed"), x_val_imputed)
 
@@ -237,6 +240,24 @@ def main(argv):
         elif FLAGS.data_type == "sprites":
             img_shape = (64, 64, 3)
             cmap = None
+
+        # TODO:Yaniv: addition: display 20 samples =================================
+        samples_to_show = 30
+        idx = np.random.randint(0, len(x_val_imputed_no_gt), samples_to_show)
+        fig, axes = plt.subplots(nrows=samples_to_show * 3,
+                                 ncols=base_data_masked.shape[1],
+                                 figsize=(2 * base_data_masked.shape[1], 2 * 3 * samples_to_show))
+        zip_seqs = list(zip(base_data_full[idx], x_val_imputed_no_gt[idx], x_val_imputed[idx]))
+        seqs = [item for z in zip_seqs for item in z]
+        for axs, seq in zip(axes, seqs):
+            for ax, img in zip(axs, seq):
+                ax.imshow(img.reshape(img_shape), cmap=cmap)
+                ax.axis('off')
+        suptitle = FLAGS.model_type + f" reconstruction"
+        fig.suptitle(suptitle, size=18)
+        fig.savefig(os.path.join(GENERATED_DATA_PATH, FLAGS.data_type + f"_{samples_to_show}_samples"))
+        # TODO:Yaniv: end of addition =============================================
+
 
         fig, axes = plt.subplots(nrows=3, ncols=base_data_masked.shape[1], figsize=(2*base_data_masked.shape[1], 6))
 
