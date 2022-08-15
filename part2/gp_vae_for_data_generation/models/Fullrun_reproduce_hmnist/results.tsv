@@ -1,2 +1,0 @@
-seed	model	data	kernel	beta	z_size	num_epochs	batch_size	learning_rate	window_size	kernel_scales	sigma	length_scale	encoder_depth	encoder_width	decoder_depth	decoder_width	cnn_kernel_size	cnn_sizes	NLL	MSE	last_train_loss	last_val_loss	AUPRC	AUROC	testing	data_dir
-111	gp-vae	hmnist	cauchy	0.8	256	20	64	0.001	3	1	1.0	2.0	2	256	3	256	3	[256]	0.3451187	0.1097693	1289.3357	1300.0657	0.8108427231166722	0.9591080598960222	True	data/hmnist/hmnist_mnar.npz

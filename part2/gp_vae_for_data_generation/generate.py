@@ -5,13 +5,9 @@ Script to generate data based on existing GP-VAE model.
 """
 import pickle
 from pathlib import Path
-
-import threading
 import utils
 import sys
 import os
-import time
-from datetime import datetime
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -45,34 +41,12 @@ flags.DEFINE_float('length_scale', 2.0, 'Length scale value for the GP prior: Ig
 flags.DEFINE_float('beta', 0.8, 'Factor to weigh the KL term (similar to beta-VAE)')
 flags.DEFINE_integer('num_epochs', 20, 'Number of training epochs')
 
-# SPRITES config GP-VAE
-# flags.DEFINE_integer('latent_dim', 256, 'Dimensionality of the latent space')
-# flags.DEFINE_list('encoder_sizes', [32, 256, 256], 'Layer sizes of the encoder')
-# flags.DEFINE_list('decoder_sizes', [256, 256, 256], 'Layer sizes of the decoder')
-# flags.DEFINE_integer('window_size', 3, 'Window size for the inference CNN: Ignored if model_type is not gp-vae')
-# flags.DEFINE_float('sigma', 1.0, 'Sigma value for the GP prior: Ignored if model_type is not gp-vae')
-# flags.DEFINE_float('length_scale', 2.0, 'Length scale value for the GP prior: Ignored if model_type is not gp-vae')
-# flags.DEFINE_float('beta', 0.1, 'Factor to weigh the KL term (similar to beta-VAE)')
-# flags.DEFINE_integer('num_epochs', 20, 'Number of training epochs')
-
-# Physionet config
-# flags.DEFINE_integer('latent_dim', 35, 'Dimensionality of the latent space')
-# flags.DEFINE_list('encoder_sizes', [128, 128], 'Layer sizes of the encoder')
-# flags.DEFINE_list('decoder_sizes', [256, 256], 'Layer sizes of the decoder')
-# flags.DEFINE_integer('window_size', 24, 'Window size for the inference CNN: Ignored if model_type is not gp-vae')
-# flags.DEFINE_float('sigma', 1.005, 'Sigma value for the GP prior: Ignored if model_type is not gp-vae')
-# flags.DEFINE_float('length_scale', 7.0, 'Length scale value for the GP prior: Ignored if model_type is not gp-vae')
-# flags.DEFINE_float('beta', 0.2, 'Factor to weigh the KL term (similar to beta-VAE)')
-# flags.DEFINE_integer('num_epochs', 40, 'Number of training epochs')
-
 # Flags with common default values for all three datasets
 flags.DEFINE_float('learning_rate', 1e-3, 'Learning rate for training')
 flags.DEFINE_float('gradient_clip', 1e4, 'Maximum global gradient norm for the gradient clipping during training')
 flags.DEFINE_integer('num_steps', 0, 'Number of training steps: If non-zero it overwrites num_epochs')
 flags.DEFINE_integer('print_interval', 0, 'Interval for printing the loss and saving the model during training')
-flags.DEFINE_string('exp_name', "debug", 'Name of the experiment')
 flags.DEFINE_string('base_dir', "models", 'Directory where the models should be stored')
-flags.DEFINE_string('data_dir', "", 'Directory from where the data should be read in')
 flags.DEFINE_enum('data_type', 'hmnist', ['hmnist', 'physionet', 'sprites'], 'Type of data to be trained on')
 flags.DEFINE_integer('seed', 1337, 'Seed for the random number generator')
 flags.DEFINE_enum('model_type', 'gp-vae', ['vae', 'hi-vae', 'gp-vae'], 'Type of model to be trained')
@@ -88,8 +62,9 @@ flags.DEFINE_integer('K', 1, 'Number of importance sampling weights')
 flags.DEFINE_enum('kernel', 'cauchy', ['rbf', 'diffusion', 'matern', 'cauchy'], 'Kernel to be used for the GP prior: Ignored if model_type is not (m)gp-vae')
 flags.DEFINE_integer('kernel_scales', 1, 'Number of different length scales sigma for the GP prior: Ignored if model_type is not gp-vae')
 
-flags.DEFINE_float('white_flip_ratio', 0.6, 'Learning rate for training')
-flags.DEFINE_float('black_flip_ratio', 0.75, 'Learning rate for training')
+flags.DEFINE_float('white_flip_ratio', 0.6, 'white pixel flip rate')
+flags.DEFINE_float('black_flip_ratio', 0.75, 'Black pixel flip rate')
+
 
 def main(argv):
     del argv  # unused
@@ -110,47 +85,27 @@ def main(argv):
     ###################################
     # Define data specific parameters #
     ###################################
+    FLAGS.data_type == "hmnist"
 
-    if FLAGS.data_type == "hmnist":
-        # TODO:Yaniv: update paths if necessary
-        BASE_PATH = Path(FLAGS.base_dir)
-        MODEL_PATH = BASE_PATH / Path('model/final_model_weights.pickle')
-        BASE_DATA_PATH = BASE_PATH / Path('base_data.npy')
-        GENERATED_DATA_PATH = BASE_PATH / Path('generated_data')
+    BASE_PATH = Path(FLAGS.base_dir)
+    MODEL_PATH = BASE_PATH / Path('model/final_model_weights.pickle')
+    BASE_DATA_PATH = BASE_PATH / Path('base_data.npy')
+    GENERATED_DATA_PATH = BASE_PATH / Path('generated_data')
 
-        # Create output folders on local (Colab) VM
-        Path(GENERATED_DATA_PATH).mkdir(parents=True, exist_ok=True)
-        print(f'GENERATED_DATA_PATH = {GENERATED_DATA_PATH}, exists = {Path.exists(GENERATED_DATA_PATH)}')
+    # Create output folders on local (Colab) VM
+    Path(GENERATED_DATA_PATH).mkdir(parents=True, exist_ok=True)
+    print(f'GENERATED_DATA_PATH = {GENERATED_DATA_PATH}, exists = {Path.exists(GENERATED_DATA_PATH)}')
 
-        data_dim = 784
-        time_length = 10
-        num_classes = 10
-        decoder = BernoulliDecoder
-        img_shape = (28, 28, 1)
-        val_split = 50000
-    elif FLAGS.data_type == "physionet":
-        if FLAGS.data_dir == "":
-            FLAGS.data_dir = "data/physionet/physionet.npz"
-        data_dim = 35
-        time_length = 48
-        num_classes = 2
-        decoder = GaussianDecoder
-    elif FLAGS.data_type == "sprites":
-        if FLAGS.data_dir == "":
-            FLAGS.data_dir = "data/sprites/sprites.npz"
-        data_dim = 12288
-        time_length = 8
-        decoder = GaussianDecoder
-        img_shape = (64, 64, 3)
-        val_split = 8000
-    else:
-        raise ValueError("Data type must be one of ['hmnist', 'physionet', 'sprites']")
-
+    data_dim = 784
+    time_length = 10
+    num_classes = 10
+    decoder = BernoulliDecoder
+    img_shape = (28, 28, 1)
+    val_split = 50000
 
     #############
     # Load and prepare data #
     #############
-
     #load base dataset from disk
     base_data_full = np.load(BASE_DATA_PATH)
 
@@ -161,19 +116,12 @@ def main(argv):
     # utils.display_mnist_chars(base_data_full[0:5, :, :])
     # utils.display_mnist_chars(base_data_masked[0:5, :, :])
 
-    # Build Conv2D preprocessor for image data
-    if FLAGS.data_type in ['hmnist', 'sprites']:
-        print("Using CNN preprocessor")
-        image_preprocessor = ImagePreprocessor(img_shape, FLAGS.cnn_sizes, FLAGS.cnn_kernel_size)
-    elif FLAGS.data_type == 'physionet':
-        image_preprocessor = None
-    else:
-        raise ValueError("Data type must be one of ['hmnist', 'physionet', 'sprites']")
-
-
     ###############
     # Build model #
     ###############
+    # Build Conv2D preprocessor for image data
+    image_preprocessor = ImagePreprocessor(img_shape, FLAGS.cnn_sizes, FLAGS.cnn_kernel_size)
+
     if FLAGS.model_type == "vae":
         model = VAE(latent_dim=FLAGS.latent_dim, data_dim=data_dim, time_length=time_length,
                     encoder_sizes=FLAGS.encoder_sizes, encoder=DiagonalEncoder,
@@ -202,7 +150,7 @@ def main(argv):
     trainable_vars = model.get_trainable_vars()
     optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
 
-    # Load model checkpoint (Trained model parameters)
+    # Load model weights (Trained model parameters)
     with open(MODEL_PATH, mode='rb') as file:
         model_weights = pickle.load(file)
 
@@ -216,7 +164,6 @@ def main(argv):
     ##############
 
     print("Generating...")
-
     # Split data on batches
     x_val_miss_batches = np.array_split(base_data_masked, FLAGS.batch_size, axis=0)
 
@@ -231,18 +178,8 @@ def main(argv):
     x_val_imputed[mask_set == 0] = base_data_masked[mask_set == 0]
     np.save(os.path.join(GENERATED_DATA_PATH, "imputed"), x_val_imputed)
 
-    # Visualize reconstructions
-    if FLAGS.data_type in ["hmnist", "sprites"]:
-        img_index = 0
-        if FLAGS.data_type == "hmnist":
-            img_shape = (28, 28)
-            cmap = "gray"
-        elif FLAGS.data_type == "sprites":
-            img_shape = (64, 64, 3)
-            cmap = None
-
-        filename = str(GENERATED_DATA_PATH / Path(FLAGS.data_type))
-        utils.save_visual_sample_triplets_to_file(30, filename, (28, 28), base_data_full, x_val_imputed_no_gt, x_val_imputed)
+    filename = str(GENERATED_DATA_PATH / Path(FLAGS.data_type))
+    utils.save_visual_sample_triplets_to_file(30, filename, (28, 28), base_data_full, x_val_imputed_no_gt, x_val_imputed)
 
     print("Generation finished.")
 
