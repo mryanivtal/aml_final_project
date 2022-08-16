@@ -310,21 +310,6 @@ def main(argv):
     x_val_imputed[m_val_miss == 0] = x_val_miss[m_val_miss == 0]
     np.save(os.path.join(outdir, "imputed"), x_val_imputed)
 
-    # AUROC evaluation using Logistic Regression
-    x_val_imputed = np.round(x_val_imputed)
-    x_val_imputed = x_val_imputed.reshape([-1, time_length * data_dim])
-
-    cls_model = LogisticRegression(solver='lbfgs', multi_class='multinomial', tol=1e-10, max_iter=10000)
-    val_split = len(x_val_imputed) // 2
-
-    cls_model.fit(x_val_imputed[:val_split], y_val[:val_split])
-    probs = cls_model.predict_proba(x_val_imputed[val_split:])
-
-    auprc = average_precision_score(np.eye(num_classes)[y_val[val_split:]], probs)
-    auroc = roc_auc_score(np.eye(num_classes)[y_val[val_split:]], probs)
-    print("AUROC: {:.4f}".format(auroc))
-    print("AUPRC: {:.4f}".format(auprc))
-
     # Visualize reconstructions
     img_index = 0
     if FLAGS.data_type == "hmnist":
@@ -349,26 +334,45 @@ def main(argv):
     fig.suptitle(suptitle, size=18)
     fig.savefig(os.path.join(outdir, FLAGS.data_type + "_reconstruction.pdf"))
 
-    results_all = [FLAGS.seed, FLAGS.model_type, FLAGS.data_type, FLAGS.kernel, FLAGS.beta, FLAGS.latent_dim,
-                   FLAGS.num_epochs, FLAGS.batch_size, FLAGS.learning_rate, FLAGS.window_size,
-                   FLAGS.kernel_scales, FLAGS.sigma, FLAGS.length_scale,
-                   len(FLAGS.encoder_sizes), FLAGS.encoder_sizes[0] if len(FLAGS.encoder_sizes) > 0 else 0,
-                   len(FLAGS.decoder_sizes), FLAGS.decoder_sizes[0] if len(FLAGS.decoder_sizes) > 0 else 0,
-                   FLAGS.cnn_kernel_size, FLAGS.cnn_sizes,
-                   nll_miss, mse_miss, losses_train[-1], losses_val[-1], auprc, auroc, FLAGS.data_dir]
-
-    with open(os.path.join(outdir, "results.tsv"), "w") as outfile:
-        outfile.write("seed\tmodel\tdata\tkernel\tbeta\tz_size\tnum_epochs"
-                      "\tbatch_size\tlearning_rate\twindow_size\tkernel_scales\t"
-                      "sigma\tlength_scale\tencoder_depth\tencoder_width\t"
-                      "decoder_depth\tdecoder_width\tcnn_kernel_size\t"
-                      "cnn_sizes\tNLL\tMSE\tlast_train_loss\tlast_val_loss\tAUPRC\tAUROC\tdata_dir\n")
-        outfile.write("\t".join(map(str, results_all)))
-
-    with open(os.path.join(outdir, "training_curve.tsv"), "w") as outfile:
-        outfile.write("\t".join(map(str, losses_train)))
-        outfile.write("\n")
-        outfile.write("\t".join(map(str, losses_val)))
+    # ==== TODO: Yaniv
+    # ==== AURC prediction metrics calculation
+    # ==== Decide whether to update the labels or remove this section entirely.
+    #
+    # # AUROC evaluation using Logistic Regression
+    # x_val_imputed = np.round(x_val_imputed)
+    # x_val_imputed = x_val_imputed.reshape([-1, time_length * data_dim])
+    #
+    # cls_model = LogisticRegression(solver='lbfgs', multi_class='multinomial', tol=1e-10, max_iter=10000)
+    # val_split = len(x_val_imputed) // 2
+    #
+    # cls_model.fit(x_val_imputed[:val_split], y_val[:val_split])
+    # probs = cls_model.predict_proba(x_val_imputed[val_split:])
+    #
+    # auprc = average_precision_score(np.eye(num_classes)[y_val[val_split:]], probs)
+    # auroc = roc_auc_score(np.eye(num_classes)[y_val[val_split:]], probs)
+    # print("AUROC: {:.4f}".format(auroc))
+    # print("AUPRC: {:.4f}".format(auprc))
+    #
+    # results_all = [FLAGS.seed, FLAGS.model_type, FLAGS.data_type, FLAGS.kernel, FLAGS.beta, FLAGS.latent_dim,
+    #                FLAGS.num_epochs, FLAGS.batch_size, FLAGS.learning_rate, FLAGS.window_size,
+    #                FLAGS.kernel_scales, FLAGS.sigma, FLAGS.length_scale,
+    #                len(FLAGS.encoder_sizes), FLAGS.encoder_sizes[0] if len(FLAGS.encoder_sizes) > 0 else 0,
+    #                len(FLAGS.decoder_sizes), FLAGS.decoder_sizes[0] if len(FLAGS.decoder_sizes) > 0 else 0,
+    #                FLAGS.cnn_kernel_size, FLAGS.cnn_sizes,
+    #                nll_miss, mse_miss, losses_train[-1], losses_val[-1], auprc, auroc, FLAGS.data_dir]
+    #
+    # with open(os.path.join(outdir, "results.tsv"), "w") as outfile:
+    #     outfile.write("seed\tmodel\tdata\tkernel\tbeta\tz_size\tnum_epochs"
+    #                   "\tbatch_size\tlearning_rate\twindow_size\tkernel_scales\t"
+    #                   "sigma\tlength_scale\tencoder_depth\tencoder_width\t"
+    #                   "decoder_depth\tdecoder_width\tcnn_kernel_size\t"
+    #                   "cnn_sizes\tNLL\tMSE\tlast_train_loss\tlast_val_loss\tAUPRC\tAUROC\tdata_dir\n")
+    #     outfile.write("\t".join(map(str, results_all)))
+    #
+    # with open(os.path.join(outdir, "training_curve.tsv"), "w") as outfile:
+    #     outfile.write("\t".join(map(str, losses_train)))
+    #     outfile.write("\n")
+    #     outfile.write("\t".join(map(str, losses_val)))
 
     print("Training finished.")
 
