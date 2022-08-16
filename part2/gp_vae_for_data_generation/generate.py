@@ -52,7 +52,6 @@ flags.DEFINE_integer('seed', 1337, 'Seed for the random number generator')
 flags.DEFINE_enum('model_type', 'gp-vae', ['vae', 'hi-vae', 'gp-vae'], 'Type of model to be trained')
 flags.DEFINE_integer('cnn_kernel_size', 3, 'Kernel size for the CNN preprocessor')
 flags.DEFINE_list('cnn_sizes', [256], 'Number of filters for the layers of the CNN preprocessor')
-flags.DEFINE_boolean('testing', False, 'Use the actual test set for testing')
 flags.DEFINE_boolean('banded_covar', False, 'Use a banded covariance matrix instead of a diagonal one for the output1 of the inference network: Ignored if model_type is not gp-vae')
 flags.DEFINE_integer('batch_size', 64, 'Batch size for training')
 
@@ -71,7 +70,7 @@ def main(argv):
     np.random.seed(FLAGS.seed)
     tf.compat.v1.set_random_seed(FLAGS.seed)
 
-    print("Testing: ", FLAGS.testing, f"\t Seed: {FLAGS.seed}")
+    print("Seed: {FLAGS.seed}")
 
     FLAGS.encoder_sizes = [int(size) for size in FLAGS.encoder_sizes]
     FLAGS.decoder_sizes = [int(size) for size in FLAGS.decoder_sizes]
@@ -89,7 +88,7 @@ def main(argv):
 
     BASE_PATH = Path(FLAGS.base_dir)
     MODEL_PATH = BASE_PATH / Path('model/final_model_weights.pickle')
-    BASE_DATA_PATH = BASE_PATH / Path('base_data.npy')
+    BASE_DATA_PATH = BASE_PATH / Path('train_data.npz')
     GENERATED_DATA_PATH = BASE_PATH / Path('generated_data')
 
     # Create output folders on local (Colab) VM
@@ -107,7 +106,8 @@ def main(argv):
     # Load and prepare data #
     #############
     #load base dataset from disk
-    base_data_full = np.load(BASE_DATA_PATH)
+    train_data_npz = np.load(BASE_DATA_PATH)
+    base_data_full = train_data_npz['x_train']
 
     # Generate masked data
     base_data_masked, mask_set = utils.apply_mnar_noise(base_data_full, white_flip_ratio=FLAGS.white_flip_ratio, black_flip_ratio=FLAGS.black_flip_ratio)

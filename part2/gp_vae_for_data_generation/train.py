@@ -62,7 +62,7 @@ flags.DEFINE_string('data_dir', "", 'Directory from where the data should be rea
 flags.DEFINE_integer('train_class_number', 6000, "max number of class exmaples in training set")
 flags.DEFINE_float('white_flip_ratio', 0.6, 'Learning rate for training')
 flags.DEFINE_float('black_flip_ratio', 0.75, 'Learning rate for training')
-
+flags.DEFINE_boolean('evaluate_results', False, 'run generation/evaluation as part of train')
 # --------- end of addition
 
 flags.DEFINE_integer('M', 1, 'Number of samples for ELBO estimation')
@@ -121,15 +121,16 @@ def main(argv):
             indexes = np.append(indexes, np.random.choice(itemindex[0], FLAGS.train_class_number, replace=False), axis=0)
         print(len(indexes))
         x_train_full = x_train_full[indexes]
+        y_train = y_train[indexes]
+
+    # Save X_train_full and y_train data for generation and classification later - into outputs folder
+    data_output_path = Path(FLAGS.base_dir) / Path('train_data.npz')
+    np.savez_compressed(data_output_path, x_train=x_train_full, y_train=y_train)
+    print(f'Saved train dataset to: {data_output_path}')
 
     # Mask train and test data using statistical mask
     x_train_miss, m_train_miss = utils.apply_mnar_noise(x_train_full, white_flip_ratio=FLAGS.white_flip_ratio, black_flip_ratio=FLAGS.black_flip_ratio)
     x_val_miss, m_val_miss = utils.apply_mnar_noise(x_val_full, white_flip_ratio=FLAGS.white_flip_ratio, black_flip_ratio=FLAGS.black_flip_ratio)           # Also use random masks in validation set
-
-    # Save X_full data for generation later - into outputs folder
-    data_output_path = Path(FLAGS.base_dir) / Path('base_data.npy')
-    np.save(data_output_path, x_train_full)
-    print(f'Saved train dataset to: {data_output_path}')
 
     # Create tensors from data
     tf_x_train_miss = tf.data.Dataset.from_tensor_slices((x_train_miss, m_train_miss))\
@@ -279,100 +280,102 @@ def main(argv):
         pickle.dump(model_weights, file)
 
 
-    ##############
-    # Evaluation #
-    ##############
-    print("Evaluation...")
 
-    # Split data on batches
-    x_val_miss_batches = np.array_split(x_val_miss, FLAGS.batch_size, axis=0)
-    x_val_full_batches = np.array_split(x_val_full, FLAGS.batch_size, axis=0)
-    m_val_batches = np.array_split(m_val_miss, FLAGS.batch_size, axis=0)
+    if FLAGS.evaluate_results:
+        ##############
+        # Evaluation #
+        ##############
+        print("Evaluation...")
 
-    get_val_batches = lambda: zip(x_val_miss_batches, x_val_full_batches, m_val_batches)
+        # Split data on batches
+        x_val_miss_batches = np.array_split(x_val_miss, FLAGS.batch_size, axis=0)
+        x_val_full_batches = np.array_split(x_val_full, FLAGS.batch_size, axis=0)
+        m_val_batches = np.array_split(m_val_miss, FLAGS.batch_size, axis=0)
 
-    # Compute NLL and MSE on missing values
-    n_missings = m_val_miss.sum()
-    nll_miss = np.sum([model.compute_nll(x, y=y, m_mask=m).numpy()
-                       for x, y, m in get_val_batches()]) / n_missings
-    mse_miss = np.sum([model.compute_mse(x, y=y, m_mask=m, binary=FLAGS.data_type=="hmnist").numpy()
-                       for x, y, m in get_val_batches()]) / n_missings
-    print("NLL miss: {:.4f}".format(nll_miss))
-    print("MSE miss: {:.4f}".format(mse_miss))
+        get_val_batches = lambda: zip(x_val_miss_batches, x_val_full_batches, m_val_batches)
 
-    # Save imputed values
-    z_mean = [model.encode(x_batch).mean().numpy() for x_batch in x_val_miss_batches]
-    np.save(os.path.join(outdir, "z_mean"), np.vstack(z_mean))
-    x_val_imputed = np.vstack([model.decode(z_batch).mean().numpy() for z_batch in z_mean])
-    np.save(os.path.join(outdir, "imputed_no_gt"), x_val_imputed)
+        # Compute NLL and MSE on missing values
+        n_missings = m_val_miss.sum()
+        nll_miss = np.sum([model.compute_nll(x, y=y, m_mask=m).numpy()
+                           for x, y, m in get_val_batches()]) / n_missings
+        mse_miss = np.sum([model.compute_mse(x, y=y, m_mask=m, binary=FLAGS.data_type=="hmnist").numpy()
+                           for x, y, m in get_val_batches()]) / n_missings
+        print("NLL miss: {:.4f}".format(nll_miss))
+        print("MSE miss: {:.4f}".format(mse_miss))
 
-    # impute gt observed values
-    x_val_imputed[m_val_miss == 0] = x_val_miss[m_val_miss == 0]
-    np.save(os.path.join(outdir, "imputed"), x_val_imputed)
+        # Save imputed values
+        z_mean = [model.encode(x_batch).mean().numpy() for x_batch in x_val_miss_batches]
+        np.save(os.path.join(outdir, "z_mean"), np.vstack(z_mean))
+        x_val_imputed = np.vstack([model.decode(z_batch).mean().numpy() for z_batch in z_mean])
+        np.save(os.path.join(outdir, "imputed_no_gt"), x_val_imputed)
 
-    # Visualize reconstructions
-    img_index = 0
-    if FLAGS.data_type == "hmnist":
-        img_shape = (28, 28)
-        cmap = "gray"
-    elif FLAGS.data_type == "sprites":
-        img_shape = (64, 64, 3)
-        cmap = None
+        # impute gt observed values
+        x_val_imputed[m_val_miss == 0] = x_val_miss[m_val_miss == 0]
+        np.save(os.path.join(outdir, "imputed"), x_val_imputed)
 
-    fig, axes = plt.subplots(nrows=3, ncols=x_val_miss.shape[1], figsize=(2*x_val_miss.shape[1], 6))
+        # Visualize reconstructions
+        img_index = 0
+        if FLAGS.data_type == "hmnist":
+            img_shape = (28, 28)
+            cmap = "gray"
+        elif FLAGS.data_type == "sprites":
+            img_shape = (64, 64, 3)
+            cmap = None
 
-    x_hat = model.decode(model.encode(x_val_miss[img_index: img_index+1]).mean()).mean().numpy()
-    seqs = [x_val_miss[img_index:img_index+1], x_hat, x_val_full[img_index:img_index+1]]
+        fig, axes = plt.subplots(nrows=3, ncols=x_val_miss.shape[1], figsize=(2*x_val_miss.shape[1], 6))
 
-    for axs, seq in zip(axes, seqs):
-        for ax, img in zip(axs, seq[0]):
-            ax.imshow(img.reshape(img_shape), cmap=cmap)
-            ax.axis('off')
+        x_hat = model.decode(model.encode(x_val_miss[img_index: img_index+1]).mean()).mean().numpy()
+        seqs = [x_val_miss[img_index:img_index+1], x_hat, x_val_full[img_index:img_index+1]]
 
-    # results table
-    suptitle = FLAGS.model_type + f" reconstruction, NLL missing = {mse_miss}"
-    fig.suptitle(suptitle, size=18)
-    fig.savefig(os.path.join(outdir, FLAGS.data_type + "_reconstruction.pdf"))
+        for axs, seq in zip(axes, seqs):
+            for ax, img in zip(axs, seq[0]):
+                ax.imshow(img.reshape(img_shape), cmap=cmap)
+                ax.axis('off')
 
-    # ==== TODO: Yaniv
-    # ==== AURC prediction metrics calculation
-    # ==== Decide whether to update the labels or remove this section entirely.
-    #
-    # # AUROC evaluation using Logistic Regression
-    # x_val_imputed = np.round(x_val_imputed)
-    # x_val_imputed = x_val_imputed.reshape([-1, time_length * data_dim])
-    #
-    # cls_model = LogisticRegression(solver='lbfgs', multi_class='multinomial', tol=1e-10, max_iter=10000)
-    # val_split = len(x_val_imputed) // 2
-    #
-    # cls_model.fit(x_val_imputed[:val_split], y_val[:val_split])
-    # probs = cls_model.predict_proba(x_val_imputed[val_split:])
-    #
-    # auprc = average_precision_score(np.eye(num_classes)[y_val[val_split:]], probs)
-    # auroc = roc_auc_score(np.eye(num_classes)[y_val[val_split:]], probs)
-    # print("AUROC: {:.4f}".format(auroc))
-    # print("AUPRC: {:.4f}".format(auprc))
-    #
-    # results_all = [FLAGS.seed, FLAGS.model_type, FLAGS.data_type, FLAGS.kernel, FLAGS.beta, FLAGS.latent_dim,
-    #                FLAGS.num_epochs, FLAGS.batch_size, FLAGS.learning_rate, FLAGS.window_size,
-    #                FLAGS.kernel_scales, FLAGS.sigma, FLAGS.length_scale,
-    #                len(FLAGS.encoder_sizes), FLAGS.encoder_sizes[0] if len(FLAGS.encoder_sizes) > 0 else 0,
-    #                len(FLAGS.decoder_sizes), FLAGS.decoder_sizes[0] if len(FLAGS.decoder_sizes) > 0 else 0,
-    #                FLAGS.cnn_kernel_size, FLAGS.cnn_sizes,
-    #                nll_miss, mse_miss, losses_train[-1], losses_val[-1], auprc, auroc, FLAGS.data_dir]
-    #
-    # with open(os.path.join(outdir, "results.tsv"), "w") as outfile:
-    #     outfile.write("seed\tmodel\tdata\tkernel\tbeta\tz_size\tnum_epochs"
-    #                   "\tbatch_size\tlearning_rate\twindow_size\tkernel_scales\t"
-    #                   "sigma\tlength_scale\tencoder_depth\tencoder_width\t"
-    #                   "decoder_depth\tdecoder_width\tcnn_kernel_size\t"
-    #                   "cnn_sizes\tNLL\tMSE\tlast_train_loss\tlast_val_loss\tAUPRC\tAUROC\tdata_dir\n")
-    #     outfile.write("\t".join(map(str, results_all)))
-    #
-    # with open(os.path.join(outdir, "training_curve.tsv"), "w") as outfile:
-    #     outfile.write("\t".join(map(str, losses_train)))
-    #     outfile.write("\n")
-    #     outfile.write("\t".join(map(str, losses_val)))
+        # results table
+        suptitle = FLAGS.model_type + f" reconstruction, NLL missing = {mse_miss}"
+        fig.suptitle(suptitle, size=18)
+        fig.savefig(os.path.join(outdir, FLAGS.data_type + "_reconstruction.pdf"))
+
+        # ==== TODO: Yaniv
+        # ==== AURC prediction metrics calculation
+        # ==== Decide whether to update the labels or remove this section entirely.
+        #
+        # # AUROC evaluation using Logistic Regression
+        # x_val_imputed = np.round(x_val_imputed)
+        # x_val_imputed = x_val_imputed.reshape([-1, time_length * data_dim])
+        #
+        # cls_model = LogisticRegression(solver='lbfgs', multi_class='multinomial', tol=1e-10, max_iter=10000)
+        # val_split = len(x_val_imputed) // 2
+        #
+        # cls_model.fit(x_val_imputed[:val_split], y_val[:val_split])
+        # probs = cls_model.predict_proba(x_val_imputed[val_split:])
+        #
+        # auprc = average_precision_score(np.eye(num_classes)[y_val[val_split:]], probs)
+        # auroc = roc_auc_score(np.eye(num_classes)[y_val[val_split:]], probs)
+        # print("AUROC: {:.4f}".format(auroc))
+        # print("AUPRC: {:.4f}".format(auprc))
+        #
+        # results_all = [FLAGS.seed, FLAGS.model_type, FLAGS.data_type, FLAGS.kernel, FLAGS.beta, FLAGS.latent_dim,
+        #                FLAGS.num_epochs, FLAGS.batch_size, FLAGS.learning_rate, FLAGS.window_size,
+        #                FLAGS.kernel_scales, FLAGS.sigma, FLAGS.length_scale,
+        #                len(FLAGS.encoder_sizes), FLAGS.encoder_sizes[0] if len(FLAGS.encoder_sizes) > 0 else 0,
+        #                len(FLAGS.decoder_sizes), FLAGS.decoder_sizes[0] if len(FLAGS.decoder_sizes) > 0 else 0,
+        #                FLAGS.cnn_kernel_size, FLAGS.cnn_sizes,
+        #                nll_miss, mse_miss, losses_train[-1], losses_val[-1], auprc, auroc, FLAGS.data_dir]
+        #
+        # with open(os.path.join(outdir, "results.tsv"), "w") as outfile:
+        #     outfile.write("seed\tmodel\tdata\tkernel\tbeta\tz_size\tnum_epochs"
+        #                   "\tbatch_size\tlearning_rate\twindow_size\tkernel_scales\t"
+        #                   "sigma\tlength_scale\tencoder_depth\tencoder_width\t"
+        #                   "decoder_depth\tdecoder_width\tcnn_kernel_size\t"
+        #                   "cnn_sizes\tNLL\tMSE\tlast_train_loss\tlast_val_loss\tAUPRC\tAUROC\tdata_dir\n")
+        #     outfile.write("\t".join(map(str, results_all)))
+        #
+        # with open(os.path.join(outdir, "training_curve.tsv"), "w") as outfile:
+        #     outfile.write("\t".join(map(str, losses_train)))
+        #     outfile.write("\n")
+        #     outfile.write("\t".join(map(str, losses_val)))
 
     print("Training finished.")
 
