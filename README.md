@@ -37,5 +37,6 @@ Run the follwing notebooks in this order:
 # References
 Our work is based on the following code repositories:
 https://github.com/ratschlab/GP-VAE
+
 https://github.com/jsyoon0823/TimeGAN
 
