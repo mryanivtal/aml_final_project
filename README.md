@@ -34,3 +34,8 @@ Run the follwing notebooks in this order:
 * Time_GAN_generation - to generate data with TimeGAN
 * timeseries_classifictaion - to classify time-series with original limitest train-set, GP-VAE generated data, TimeGAN generated data and see each one impact on test set accuracy
 
+# References
+Our work is based on the following code repositories:
+https://github.com/ratschlab/GP-VAE
+https://github.com/jsyoon0823/TimeGAN
+
