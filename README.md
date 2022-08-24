@@ -18,13 +18,18 @@ Part 1 contains the following parts:
 
 part 2 conatins following parts:
 * gp_vae_for_data_generation folder - gp vae source code adjusted to support data generation flow
-* GP_VAE_Generation - notebook 
+* GP_VAE_Generation - notebook to train gp-vae with limited train set and generate syntetic data 
+*  
 
 # Code Run
-In order to repreduce our reults you should take the follwing steps:
+In order to repreduce our reults you should clone this repo to your google drive take the follwing steps:
 
 ## Part 1
 Run GP_VAE_repreduce notebook
 
 ## Part 2
+Run the follwing notebooks in this order:
+* GP_VAE_generation - to generated limites train set and generate data with GP-VAE
+* Time_GAN_generation - to generate data with TimeGAN
+* timeseries_classifictaion - to classify ti-series with original limitest train-set, GP-VAE generated data, TimeGAN generated data and see each one reusulst in test set 
 
