@@ -7,4 +7,24 @@ The project is based on GP-VAE and conatins following parts:
  2. Part 2 - innovation part where we take GP-VAE that orignally designed for imputation for creating synthetic data to enrich our limited training set and evaluate the impact of it by reporting classification model accuracy on the test set
  
 # Getting Started 
+## Part 1
+
+Part 1 contains the following parts:
+* Project proposal 
+* GP_VAE_repreduce notebook that repredocues GP-VAE results
+* Model results pdf
+
+## Part 2
+
+part 2 conatins following parts:
+* gp_vae_for_data_generation folder - gp vae source code adjusted to support data generation flow
+* GP_VAE_Generation - notebook 
+
+# Code Run
+In order to repreduce our reults you should take the follwing steps:
+
+## Part 1
+Run GP_VAE_repreduce notebook
+
+## Part 2
 
